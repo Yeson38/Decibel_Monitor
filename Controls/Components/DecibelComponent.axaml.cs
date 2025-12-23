@@ -1,10 +1,13 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using DecibelComponentSettings = Decibel_Monitor.Models.ComponentSettings.DecibelComponentSettings;
 using NAudio.CoreAudioApi;
+using NAudio.Wave;
 
 namespace Decibel_Monitor.Controls.Components;
 
@@ -48,51 +51,181 @@ public partial class DecibelComponent : ComponentBase<DecibelComponentSettings>,
         _updateTimer.Start();
     }
 
-    private void UpdateTimer_Tick(object? sender, EventArgs e)
+    // 异步 Tick，内部会异步采样（不会阻塞 UI）
+    private async void UpdateTimer_Tick(object? sender, EventArgs e)
     {
         try
         {
-            // 获取默认音频输入设备并读取峰值（范围 0..1）
+            var captureDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToArray();
             var defaultDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
-            if (defaultDevice?.AudioMeterInformation is null)
+            var selectedDevice = captureDevices.FirstOrDefault(c => c.ID == defaultDevice.ID) ?? defaultDevice;
+
+            if (selectedDevice?.AudioMeterInformation is null)
             {
                 CurrentDecibelValue = "无设备";
                 return;
             }
 
-            float linear = defaultDevice.AudioMeterInformation.MasterPeakValue/2;
+            // 获取线性峰值（0..1），内部含多重回退采样
+            float linear = await GetVoicePeakLinearAsync(selectedDevice).ConfigureAwait(false);
 
-            // 若为 0 则视为静音 -> 映射为 0
+            // 应用放大倍数（保护 Settings 为空）
+            double magnification = Settings?.Magnification ?? 1.0;
+            linear = (float)(linear * magnification);
+
             if (linear <= 0f)
             {
                 CurrentDecibelValue = "0.0";
                 return;
             }
 
-            // 真实 dB（通常为负值或 0）
-            double decibel = 20.0 * Math.Log10(linear);
+            // 计算 dBFS（通常为负值）
+            double dbfs = 20.0 * Math.Log10(linear);
 
-            // 映射参数（可根据需求调整）
-            const double minDb = -60.0;   // 小于该值视为 0
-            const double maxDb = 0.0;     // 0 dB 对应映射上限
-            const double targetMax = 150.0; // 输出的最大值
-            const double gamma = 1.2;     // >1 压缩高位，<1 扩张高位
-
-            // 限制并归一化到 0..1
-            double clampedDb = Math.Max(minDb, Math.Min(maxDb, decibel));
-            double normalized = (clampedDb - minDb) / (maxDb - minDb);
-
-            // 应用 gamma 曲线以调整感知（使中高值不至于过大）
-            double adjusted = Math.Pow(normalized, gamma);
-
-            double mapped = adjusted * targetMax;
+            // 映射为 0..150：使用 150 + dBFS，再 clamp 到 0..150
+            double mapped = Math.Clamp(150.0 + dbfs, 0.0, 150.0);
 
             CurrentDecibelValue = $"{mapped:F1}";
         }
         catch (Exception)
         {
-            // 任何异常都不会抛回 UI，显示占位文本
             CurrentDecibelValue = "读取失败";
+        }
+    }
+
+    // 与设置控件类似的多重回退采样函数（优先 AudioMeterInformation -> WasapiCapture -> WaveIn）
+    private async Task<float> GetVoicePeakLinearAsync(MMDevice selected)
+    {
+        try
+        {
+            // 1) 尝试 AudioMeterInformation
+            var val = selected?.AudioMeterInformation?.MasterPeakValue ?? 0f;
+            if (val > 0.0001f) return val;
+
+            // 2) 尝试 WasapiCapture 指定设备
+            try
+            {
+                var v = await GetVoicePeakLinearByWasapiCaptureAsync(selected, 300).ConfigureAwait(false);
+                if (v > 0.0001f) return v;
+            }
+            catch { }
+
+            // 3) 尝试 WasapiCapture 默认设备
+            try
+            {
+                var v = await GetVoicePeakLinearByWasapiCaptureAsync(null, 300).ConfigureAwait(false);
+                if (v > 0.0001f) return v;
+            }
+            catch { }
+
+            // 4) 尝试 WaveInEvent 回退
+            try
+            {
+                var v = await GetVoicePeakLinearByWaveInAsync(300).ConfigureAwait(false);
+                if (v > 0.0001f) return v;
+            }
+            catch { }
+
+            return 0f;
+        }
+        catch
+        {
+            return 0f;
+        }
+    }
+
+    private async Task<float> GetVoicePeakLinearByWasapiCaptureAsync(MMDevice? device, int captureMs = 300)
+    {
+        try
+        {
+            float maxSample = 0f;
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            using var capture = device is null ? new WasapiCapture() : new WasapiCapture(device);
+            capture.DataAvailable += (s, e) =>
+            {
+                try
+                {
+                    var wf = capture.WaveFormat;
+                    if (wf.Encoding == WaveFormatEncoding.IeeeFloat)
+                    {
+                        for (int n = 0; n + 4 <= e.BytesRecorded; n += 4)
+                        {
+                            float sample = BitConverter.ToSingle(e.Buffer, n);
+                            maxSample = Math.Max(maxSample, Math.Abs(sample));
+                        }
+                    }
+                    else if (wf.BitsPerSample == 16)
+                    {
+                        for (int n = 0; n + 2 <= e.BytesRecorded; n += 2)
+                        {
+                            short s16 = BitConverter.ToInt16(e.Buffer, n);
+                            float sample = Math.Abs(s16 / 32768f);
+                            maxSample = Math.Max(maxSample, sample);
+                        }
+                    }
+                    else if (wf.BitsPerSample == 32)
+                    {
+                        for (int n = 0; n + 4 <= e.BytesRecorded; n += 4)
+                        {
+                            int i32 = BitConverter.ToInt32(e.Buffer, n);
+                            float sample = Math.Abs(i32 / (float)int.MaxValue);
+                            maxSample = Math.Max(maxSample, sample);
+                        }
+                    }
+                }
+                catch { }
+            };
+
+            capture.RecordingStopped += (s, e) => tcs.TrySetResult(true);
+
+            capture.StartRecording();
+            await Task.Delay(captureMs).ConfigureAwait(false);
+            capture.StopRecording();
+            await Task.WhenAny(tcs.Task, Task.Delay(1000)).ConfigureAwait(false);
+
+            return Math.Clamp(maxSample, 0f, 1f);
+        }
+        catch
+        {
+            return 0f;
+        }
+    }
+
+    private async Task<float> GetVoicePeakLinearByWaveInAsync(int captureMs = 300)
+    {
+        try
+        {
+            float maxSample = 0f;
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            using var waveIn = new WaveInEvent();
+            waveIn.WaveFormat = new WaveFormat(16000, 16, 1);
+            waveIn.DataAvailable += (s, e) =>
+            {
+                try
+                {
+                    for (int i = 0; i + 2 <= e.BytesRecorded; i += 2)
+                    {
+                        short s16 = BitConverter.ToInt16(e.Buffer, i);
+                        float sample = Math.Abs(s16 / 32768f);
+                        maxSample = Math.Max(maxSample, sample);
+                    }
+                }
+                catch { }
+            };
+            waveIn.RecordingStopped += (s, e) => tcs.TrySetResult(true);
+
+            waveIn.StartRecording();
+            await Task.Delay(captureMs).ConfigureAwait(false);
+            waveIn.StopRecording();
+            await Task.WhenAny(tcs.Task, Task.Delay(1000)).ConfigureAwait(false);
+
+            return Math.Clamp(maxSample, 0f, 1f);
+        }
+        catch
+        {
+            return 0f;
         }
     }
 
