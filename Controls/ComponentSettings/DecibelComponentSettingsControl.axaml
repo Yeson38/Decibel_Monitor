@@ -1,0 +1,49 @@
+﻿<!-- 
+    <ci:ComponentBase> 是一个用户控件基类，用于定义组件设置界面。
+    
+    参数:
+        x:Class - 指定该控件的完整类型名称，包括命名空间。
+                  此处为 "Decibel_Monitor.Controls.ComponentSettings.DecibelComponentSettingsControl"
+        x:TypeArguments - 泛型参数，指定绑定的数据模型类型。
+                          这里是 componentSettingsModel:DecibelComponentSettings
+        
+    功能:
+        提供一个可滚动的设置面板，允许用户配置与分贝显示相关的组件设置，
+        包括图片路径和圆角半径两个选项。
+-->
+
+<ci:ComponentBase
+    x:Class="Decibel_Monitor.Controls.ComponentSettings.DecibelComponentSettingsControl"
+    x:TypeArguments="componentSettingsModel:DecibelComponentSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:controls="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+    xmlns:local="clr-namespace:Decibel_Monitor.Controls.ComponentSettings"
+    xmlns:componentSettingsModel="clr-namespace:Decibel_Monitor.Models.ComponentSettings"
+    mc:Ignorable="d">
+
+    <!-- 绑定到当前设置控件实例，便于访问 ReferenceDecibel 与 Settings -->
+    <ScrollViewer
+        DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type local:DecibelComponentSettingsControl}}}">
+        <StackPanel Classes="settings-container animated-intro" Margin="12" Spacing="8">
+            <TextBlock FontSize="14" FontWeight="Bold" Text="校准（Calibration）" Margin="0,0,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="72" Text="参考分贝" />
+                <Slider Width="260" Minimum="0" Maximum="150" Value="{Binding ReferenceDecibel, Mode=TwoWay}" TickFrequency="1" />
+                <TextBlock VerticalAlignment="Center" Width="56" Text="{Binding ReferenceDecibel, StringFormat='{}{0:F1} dB'}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                <Button Click="On_Calibrate" Content="校准" Padding="8,6" />
+                <TextBlock VerticalAlignment="Center" Text="当前放大倍数：" />
+                <TextBlock VerticalAlignment="Center" Text="{Binding Settings.Magnification, Mode=OneWay, StringFormat='{}{0:F3}×'}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted" Text="校准说明：先将麦克风指向参考声源并调整参考分贝滑块到预期值，点击“校准”按钮；系统会读取当前峰值并计算放大倍数，保存到设置。" TextWrapping="Wrap"/>
+        </StackPanel>
+    </ScrollViewer>
+</ci:ComponentBase>

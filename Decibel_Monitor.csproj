@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <!-- 确保编译输出包含所有包的 dll -->
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Include="YourPlugin.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ClassIsland.PluginSdk" Version="$(ClassIslandPluginSdkVersion)">
+            <ExcludeAssets>runtime; native</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="NAudio" Version="2.2.1" />
+        <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Controls\ComponentSettings\DecibelComponentSettingsControl.axaml.cs">
+        <DependentUpon>DecibelComponentSettingsControl.axaml</DependentUpon>
+      </Compile>
+      <Compile Update="Controls\Components\DecibelComponent.axaml.cs">
+        <DependentUpon>DecibelComponent.axaml</DependentUpon>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="manifest.yml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="README.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="icon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,61 @@
+﻿<!-- 
+    组件基类定义，用于创建分贝监控组件
+    类名: DecibelComponent
+    继承自: ComponentBase<DecibelComponentSettingsControl>
+    命名空间: Decibel_Monitor.Controls.Components
+    
+    参数说明:
+    - x:Class: 指定XAML对应的后台代码类的完整命名空间路径
+    - x:TypeArguments: 指定泛型参数类型，即组件设置控件的类型
+    
+    XML命名空间说明:
+    - xmlns: 默认Avalonia UI命名空间
+    - xmlns:x: Microsoft XAML命名空间
+    - xmlns:ci: ClassIsland核心XAML模式定义
+    - xmlns:componentSettings: 组件设置相关的CLR命名空间
+    - xmlns:converters: 数据转换器相关的CLR命名空间
+    - xmlns:local: 当前组件所在的本地CLR命名空间
+-->
+<ci:ComponentBase
+    x:Class="Decibel_Monitor.Controls.Components.DecibelComponent"
+    x:TypeArguments="componentSettings:DecibelComponentSettings"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:componentSettings="clr-namespace:Decibel_Monitor.Models.ComponentSettings"
+    xmlns:converters="clr-namespace:Decibel_Monitor.Shared.Converters"
+    xmlns:local="clr-namespace:Decibel_Monitor.Controls.Components">
+
+    <!-- 定义组件内部使用的资源 ->
+    <ci:ComponentBase.Resources>
+        <!- 角度转换器，用于将数值转换为圆角半径 ->
+        <converters:CornerRadiusConverter x:Key="CornerRadiusConverter" />
+    </ci:ComponentBase.Resources>
+	-->
+
+    <!-- 
+        主布局容器，使用网格布局并垂直居中对齐
+        数据上下文绑定到当前组件实例，以便访问组件的属性和设置
+    -->
+    <Grid VerticalAlignment="Center"
+          DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type local:DecibelComponent}}}">
+        <!-- 水平堆栈面板，提供基础的内外边距 -->
+        <StackPanel Orientation="Horizontal" Margin="0 2 0 2">
+            <!-- 
+                边框控件，用于显示具有圆角效果的视觉元素
+                圆角半径通过数据绑定从组件设置中获取，并使用转换器进行格式转换
+                启用裁剪以确保内容不会超出圆角边界
+            ->
+            <Border
+                CornerRadius="{Binding Settings.CornerRadius, Converter={StaticResource CornerRadiusConverter}, Mode=OneWay, UpdateSourceTrigger=PropertyChanged}"
+                ClipToBounds="True">
+            </Border>
+			-->
+		    <!--文本组件，用于显示当前的分贝值-->
+            <TextBlock Text="{Binding CurrentDecibelValue, Mode=OneWay}" 
+                       FontSize="16" 
+                       VerticalAlignment="Center" 
+                       Margin="5,0,0,0"/>
+        </StackPanel>
+    </Grid>
+</ci:ComponentBase>
