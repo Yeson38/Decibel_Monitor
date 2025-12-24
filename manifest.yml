@@ -11,3 +11,6 @@ url: https://example.com
 version: 0.0.0.1
 apiVersion: 2.0.0.0
 author: Yeson
+repoOwner: Yeson38
+repoName: Decibel_Monitor
+assetsRoot: master/Decibel_Monitor

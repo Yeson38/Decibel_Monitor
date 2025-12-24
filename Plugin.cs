@@ -15,7 +15,7 @@ namespace Decibel_Monitor
         public override void Initialize(HostBuilderContext context, IServiceCollection services)
         {
             // 可选欢迎提示
-            CommonTaskDialogs.ShowDialog("Hello world!", "Hello from Decibel_Monitor!");
+            //CommonTaskDialogs.ShowDialog("Hello world!", "Hello from Decibel_Monitor!");
 
             // 一次性注册组件与其设置控件（不要重复注册）
             services.AddComponent<Controls.Components.DecibelComponent, Controls.ComponentSettings.DecibelComponentSettingsControl>();

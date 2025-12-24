@@ -1,118 +1,62 @@
-# 插件自述文件
+# Decibel_Monitor
 
-本文件会在插件市场上显示。在安装插件后，本自述文件也会在【应用设置】->【插件】页面中显示。因此，本文件也将会是用户了解你的插件功能的重要途径，建议好好写 README。
+一个用于 ClassIsland 的分贝监测插件，实时读取系统麦克风峰值并在主界面显示分贝映射值。支持校准（将数字音频幅度映射到目标 dBFS），并提供多重回退的采样方式以提高兼容性（AudioMeterInformation、WasapiCapture、WaveInEvent）。
 
-**注意事项：**
+## 主要功能
 
-- 嵌入图片时请使用网络图床。
-- 支持在这里直接调用 ClassIsland 内部的 Uri，例如[classisland://app/test/](classisland://app/test/)。
-- 本文件一般会在 ClassIsland 内置的 Markdown 渲染器（基于 [MdXaml](https://github.com/whistyun/MdXaml)）中渲染，仅支持部分 Markdown 语法。
+- 实时显示麦克风分贝值（映射到 0–150 范围以便在 UI 中直观显示）。
+- 校准功能：根据目标 dBFS 自动计算并保存放大倍数（Settings.Magnification）。
+- 多重回退采样：当设备不提供实时计量时，自动使用短时录音回退采样以获取峰值。
+- 超出指定值自动显示提示文字（未实现）
+- 超出指定值提醒（未实现）
 
-***
+## 依赖
 
-**支持的 Markdown 语法：**
+- .NET 8
+- ClassIsland
 
-> 本示例魔改自 [Leanote 博客](http://leanote.leanote.com/post/markdown-source-code)。
+确保项目正确加载插件。
 
-# Welcome to ClassIsland! 欢迎来到ClassIsland!
- 
-## 1. 排版
- 
-**粗体** *斜体* 
- 
-~~这是一段错误的文本。~~
- 
-引用:
- 
-> 123123123123
- 
-有充列表:
- 1. 支持Vim
- 2. 支持Emacs
- 
-无序列表:
- 
- - 项目1
- - 项目2
- 
- 
-## 2. 图片与链接
- 
-网络图片:
-![Banner](https://github.com/user-attachments/assets/a815dd7d-8343-4da5-aee4-3f754aa297e4)
+## 使用说明
 
-WPF 资源图片：
+1. 在宿主中将本组件加入布局（或通过插件管理启用）。
+2. 主界面会显示当前分贝映射值（0–150）。
+3. 打开组件设置面板进行校准：
+   - 将麦克风对准参考声源或播放测试音。
+   - 将参考滑块设置为目标 dBFS（默认 -80，范围 -150..0）。
+   - 点击“校准”按钮。插件采样后计算放大倍数并保存到 `Settings.Magnification`（若设置控件未绑定则会提示并显示建议倍数）。
 
-![1690356161339](pack://application:,,,/ClassIsland;component/Assets/AppLogo.png)
+### 校准公式
 
-链接:
- 
-[ClassIsland 官网](http://classisland.tech)
- 
-## 3. 标题
- 
-以下是各级标题, 最多支持5级标题
- 
-```
-# h1
-## h2
-### h3
-#### h4
-##### h4
-###### h5
-```
- 
-## 4. 代码
- 
-示例:
- 
-    function get(key) {
-        return m[key];
-    }
-    
-代码高亮示例:
- 
-``` javascript
-/**
-* nth element in the fibonacci series.
-* @param n >= 0
-* @return the nth element, >= 0.
-*/
-function fib(n) {
-  var a = 1, b = 1;
-  var tmp;
-  while (--n >= 0) {
-    tmp = a;
-    a += b;
-    b = tmp;
-  }
-  return a;
-}
- 
-document.write(fib(10));
-```
- 
-```python
-class Employee:
-   empCount = 0
- 
-   def __init__(self, name, salary):
-        self.name = name
-        self.salary = salary
-        Employee.empCount += 1
-```
- 
-# 5. Markdown 扩展
- 
-Markdown 扩展支持:
- 
-* 表格
- 
-## 5.1 表格
- 
-Item     | Value
--------- | ---
-Computer | \$1600
-Phone    | \$12
-Pipe     | \$1
- 
+- 测量得到的线性峰值：`measuredLinear`（0..1）
+- 目标线性值：`targetLinear = 10^(targetDbFS / 20)`
+- 放大倍数：`magnification = targetLinear / measuredLinear`
+
+插件会对计算结果做上限保护（默认上限 1024；下限可为 0），以避免极端错误值。
+
+## 设置项（DecibelComponentSettings）
+
+- `Magnification` (double)：放大倍数，由校准或手动设置，默认 1.0。
+- 参考 dBFS 在设置面板中通过滑块调整。
+
+## 故障排查
+
+- 分贝值长期显示 `0.0`：
+  - 确认宿主应用有麦克风权限（Windows 隐私设置）。
+  - 确认默认捕获设备已启用并未被独占。
+  - 在设置面板使用“捕获设备列表”检查系统设备；增加音量或靠近声源再测。
+- 校准结果异常：
+  - 确认目标单位为 dBFS（数字音频相对量），而非声压级 dB SPL。
+  - 若测量值接近 0，会导致放大倍数非常大，请提高测试音量或选择更高的目标 dBFS。
+
+## 隐私与权限
+
+- 插件需要访问麦克风进行本地采样，宿主必须授予麦克风权限。
+- 插件不会上传或外传音频数据，所有采样仅在本地处理。
+
+## 开发与贡献
+
+- 欢迎提交 issue 或 PR。请遵循仓库中的贡献指南（若存在 CONTRIBUTING.md）提交风格一致的修改。
+- Idea来自：[HAHAHAHAHAYINING](https://github.com/HAHAHAHAHAYINING),[讨论#561](https://github.com/ClassIsland/ClassIsland/discussions/561)
+- 主要开发者：[Yeson38](https://github.com/Yeson38)
+- 参考代码：[CIImage](https://github.com/lrsgzs/CIImage)

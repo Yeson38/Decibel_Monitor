@@ -23,9 +23,9 @@ public partial class DecibelComponentSettingsControl : ComponentBase<DecibelComp
     private readonly MMDeviceEnumerator _enumerator;
     private bool _disposed;
 
-    // 默认改为 -80 dBFS（用户可在 UI 上改为 -150..0 范围任意值）
-    private double _referenceDecibel = -80.0;
-
+    // 默认改为 -80 dBFS 对应显示 dB 为 70（因为 dB = dBFS + 150），但这里保留为 -80 dBFS 的语义先前使用的默认
+    // 当前 ReferenceDecibel 表示 UI 上的 dB（0..150）
+    private double _referenceDecibel = 70.0; // 显示层面的默认 dB（可调整为合适值）
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public double ReferenceDecibel
@@ -225,12 +225,15 @@ public partial class DecibelComponentSettingsControl : ComponentBase<DecibelComp
                     return;
                 }
 
-                double targetDb = ReferenceDecibel; // 现在为 dBFS
-                double targetLinear = Math.Pow(10.0, targetDb / 20.0);
+                // ReferenceDecibel 为 UI 上的 dB（0..150）
+                double targetDb = ReferenceDecibel;
+                // 将显示 dB 转换为 dBFS（与组件显示一致）：dBFS = dB - 150
+                double targetDbFS = targetDb - 150.0;
 
+                double targetLinear = Math.Pow(10.0, targetDbFS / 20.0);
                 double magnification = targetLinear / measuredLinear;
                 // 限制放大倍数上限为 1024，下限 0
-                magnification = Math.Clamp(magnification, 0, 1024.0);
+                magnification = Math.Clamp(magnification, 0.0, 1024.0);
 
                 double adjustedLinear = measuredLinear * magnification;
                 double adjustedDb = adjustedLinear > 0 ? 20.0 * Math.Log10(adjustedLinear) : double.NegativeInfinity;
@@ -239,39 +242,13 @@ public partial class DecibelComponentSettingsControl : ComponentBase<DecibelComp
                 if (Settings is not null)
                 {
                     Settings.Magnification = magnification;
-                    try
-                    {
-                        CommonTaskDialogs.ShowDialog("校准结果",
-                            $"测量线性值: {measuredLinear:F4}\n" +
-                            $"测量 dBFS: {measuredDb:F1} dB\n" +
-                            $"目标 dBFS: {targetDb:F1} dB\n" +
-                            $"放大倍数: {magnification:F6}×\n" +
-                            $"放大后 dBFS (验证): {adjustedDb:F1} dB");
-                    }
-                    catch { }
+                    try { CommonTaskDialogs.ShowDialog("校准结果", $"测量线性值: {measuredLinear:F4}\n" + $"测量 dBFS: {measuredDb:F1} dB\n" + $"目标 dB (显示): {targetDb:F1} dB\n" + $"目标 dBFS: {targetDbFS:F1} dBFS\n" + $"放大倍数: {magnification:F6}×\n" + $"放大后 dBFS (验证): {adjustedDb:F1} dB"); } catch { }
                 }
-                else
-                {
-                    try
-                    {
-                        CommonTaskDialogs.ShowDialog("校准完成（未保存）",
-                            $"测量线性值: {measuredLinear:F4}\n" +
-                            $"测量 dBFS: {measuredDb:F1} dB\n" +
-                            $"目标 dBFS: {targetDb:F1} dB\n" +
-                            $"建议放大倍数: {magnification:F6}×\n" +
-                            $"放大后 dBFS (验证): {adjustedDb:F1} dB\n\n" +
-                            "当前控件未绑定到组件实例，无法直接保存设置。");
-                    }
-                    catch { }
-                }
+                else { try { CommonTaskDialogs.ShowDialog("校准完成（未保存）", $"测量线性值: {measuredLinear:F4}\n" + $"测量 dBFS: {measuredDb:F1} dB\n" + $"目标 dB (显示): {targetDb:F1} dB\n" + $"目标 dBFS: {targetDbFS:F1} dBFS\n" + $"建议放大倍数: {magnification:F6}×\n" + $"放大后 dBFS (验证): {adjustedDb:F1} dB\n\n" + "当前控件未绑定到组件实例，无法直接保存设置。"); } catch { } }
             });
         }
-        catch (Exception ex)
-        {
-            try { CommonTaskDialogs.ShowDialog("校准失败", $"发生异常：{ex.Message}"); } catch { }
-        }
+        catch (Exception ex) { try { CommonTaskDialogs.ShowDialog("校准失败", $"发生异常：{ex.Message}"); } catch { } }
     }
-
     public void Dispose()
     {
         if (_disposed) return;

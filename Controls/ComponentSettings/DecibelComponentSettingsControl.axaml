@@ -32,10 +32,10 @@
             <TextBlock FontSize="14" FontWeight="Bold" Text="校准（Calibration）" Margin="0,0,0,4"/>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                <TextBlock VerticalAlignment="Center" Width="88" Text="参考（dBFS）" />
-                <!-- 回退到 -150 .. 0 -->
-                <Slider Width="260" Minimum="-150" Maximum="0" Value="{Binding ReferenceDecibel, Mode=TwoWay}" TickFrequency="1" />
-                <TextBlock VerticalAlignment="Center" Width="64" Text="{Binding ReferenceDecibel, StringFormat='{}{0:F1} dBFS'}" />
+                <TextBlock VerticalAlignment="Center" Width="88" Text="参考（dB）" />
+                <!-- 用户可输入物理/显示 dB（0~150），内部会转换为 dBFS -->
+                <Slider Width="260" Minimum="0" Maximum="150" Value="{Binding ReferenceDecibel, Mode=TwoWay}" TickFrequency="1" />
+                <TextBlock VerticalAlignment="Center" Width="64" Text="{Binding ReferenceDecibel, StringFormat='{}{0:F1} dB'}" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
@@ -44,7 +44,7 @@
                 <TextBlock VerticalAlignment="Center" Text="{Binding Settings.Magnification, Mode=OneWay, StringFormat='{}{0:F3}×'}" />
             </StackPanel>
 
-            <TextBlock FontSize="12" Classes="muted" Text="说明：dBFS 为数字音频相对量（0 dBFS 对应幅度 1.0）。将麦克风对准参考声源，设置目标 dBFS（例如 -12 dBFS），点击“校准”以计算放大倍数。" TextWrapping="Wrap"/>
+            <TextBlock FontSize="12" Classes="muted" Text="说明：滑块为 dB（0..150）。校准时会把该 dB 转换为 dBFS（dBFS = dB - 150），再用于放大倍数计算。" TextWrapping="Wrap"/>
         </StackPanel>
     </ScrollViewer>
 </ci:ComponentBase>
