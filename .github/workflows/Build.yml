@@ -24,14 +24,18 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
+      
       - name: Build
         run: pwsh -ep bypass ./tools/publish.ps1
+
+      - name: Md5
+        run: pwsh -ep bypass ./generate-md5.ps1 Decibel_Monitor/bin/Debug/net8.0-windows/
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           path: |
-            ./cipx/*.cipx
+            ./cipx/*.cipx/checksums.md
           name: Decibel_Monitor-Actions
       
       - name: Upload APP to release
