@@ -39,7 +39,8 @@ jobs:
         with:
           artifacts: "./cipx/*.cipx"
           draft: true
-          bodyFile: ./cipx/checksums.md
+          generateReleaseNotes: true
+          body: ./cipx/checksums.md
           token: ${{ secrets.GITHUB_TOKEN }}
            
       - name: Upload artifact
