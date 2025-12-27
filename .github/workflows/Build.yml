@@ -30,12 +30,6 @@ jobs:
 
       - name: Checksum
         run: pwsh -ep bypass ./tools/generate-md5.ps1 cipx/
-
-      - name: Debug checksum file
-        run: |
-          ls -la ./cipx/
-          wc -l ./cipx/checksums.md  # 查看行数
-          head -50 ./cipx/checksums.md  # 查看前50行内容
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -44,6 +38,21 @@ jobs:
             ./cipx/*.cipx
             ./cipx/checksums.md
           name: Decibel_Monitor-Actions
+
+      - name: 🐛 诊断 checksum 文件
+        run: |
+          echo "===== 文件是否存在 ====="
+          ls -lh ./cipx/checksums.md
+          echo "===== 文件大小是否超限(125KB) ====="
+          if [ $(stat -c%s "./cipx/checksums.md") -gt 125000 ]; then
+            echo "❌ 文件过大，将被截断"
+          else
+            echo "✅ 文件大小正常"
+          fi
+          echo "===== 文件内容预览 ====="
+          cat ./cipx/checksums.md    
+          echo "===== 检查特殊字符 ====="
+          file ./cipx/checksums.md
       
       - name: Upload APP to release
         uses: ncipollo/release-action@v1
