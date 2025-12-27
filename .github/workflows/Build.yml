@@ -3,7 +3,9 @@ name: Build
 on:
   push:
   workflow_dispatch:
-
+  pull_request:
+    types: [closed]
+  
 jobs:
   build_app:
     runs-on: windows-latest
@@ -39,20 +41,15 @@ jobs:
             ./cipx/checksums.md
           name: Decibel_Monitor-Actions
 
-      - name: 🐛 诊断 checksum 文件
+      - name: Verify checksum file  # 新增调试步骤
         run: |
-          echo "===== 文件是否存在 ====="
-          ls -lh ./cipx/checksums.md
-          echo "===== 文件大小是否超限(125KB) ====="
-          if [ $(stat -c%s "./cipx/checksums.md") -gt 125000 ]; then
-            echo "❌ 文件过大，将被截断"
-          else
-            echo "✅ 文件大小正常"
-          fi
-          echo "===== 文件内容预览 ====="
-          cat ./cipx/checksums.md    
-          echo "===== 检查特殊字符 ====="
-          file ./cipx/checksums.md
+          echo "=== 文件信息 ==="
+          Get-ChildItem ./cipx/checksums.md | Format-List *
+          echo "=== 文件编码 ==="
+          Get-Content ./cipx/checksums.md -Head 1 | Format-Hex -Count 3
+          echo "=== 文件内容 ==="
+          Get-Content ./cipx/checksums.md -Raw | Out-String | Select-Object -First 50
+        shell: pwsh
       
       - name: Upload APP to release
         uses: ncipollo/release-action@v1
