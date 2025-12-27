@@ -33,33 +33,6 @@ jobs:
       - name: Checksum
         run: pwsh -ep bypass ./tools/generate-md5.ps1 cipx/
       
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          path: |
-            ./cipx/*.cipx
-            ./cipx/checksums.md
-          name: Decibel_Monitor-Actions
-
-      - name: Critica diagnostic
-        shell: pwsh
-        run: |
-          $path = "./cipx/checksums.md"
-          echo "=== 文件锁定状态 ==="
-          try {
-            $fs = [System.IO.File]::Open($path, 'Open', 'Read', 'None')
-            $fs.Close()
-            echo "文件未锁定 ✓"
-          } catch {
-            echo "文件被锁定: $($_.Exception.Message)"
-          }    
-          echo "=== 内容 MD5 ==="
-          $md5 = Get-FileHash $path -Algorithm MD5
-          echo $md5.Hash
-          echo "=== 原始字节（前50）==="
-          $bytes = [System.IO.File]::ReadAllBytes($path)[0..49]
-          [BitConverter]::ToString($bytes)
-      
       - name: Upload APP to release
         uses: ncipollo/release-action@v1
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -68,3 +41,11 @@ jobs:
           draft: true
           bodyFile: ./cipx/checksums.md
           token: ${{ secrets.GITHUB_TOKEN }}
+           
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            ./cipx/*.cipx
+            ./cipx/checksums.md
+          name: Decibel_Monitor-Actions
