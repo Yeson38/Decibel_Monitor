@@ -13,10 +13,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Include="YourPlugin.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="ClassIsland.PluginSdk" Version="$(ClassIslandPluginSdkVersion)">
             <ExcludeAssets>runtime; native</ExcludeAssets>
         </PackageReference>
