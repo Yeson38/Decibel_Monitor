@@ -14,7 +14,7 @@ namespace Decibel_Monitor.Controls.Components;
 [ComponentInfo(
     "FFFFFFFF-EEEE-DDDD-CCCC-BBBBBBBBBBBB",
     "分贝值",
-    "\uE9B2",
+    "\uEB88",
     "在主界面上显示麦克风分贝值。"
 )]
 public partial class DecibelComponent : ComponentBase<DecibelComponentSettings>, INotifyPropertyChanged, IDisposable
