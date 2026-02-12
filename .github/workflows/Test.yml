@@ -32,3 +32,20 @@ jobs:
 
       - name: Checksum
         run: pwsh -ep bypass ./tools/generate-md5.ps1 cipx/
+
+       - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: |
+            ./cipx/*.cipx
+            ./cipx/checksums.md
+          name: Decibel_Monitor-Actions
+      
+       - name: Upload APP to release
+         uses: ncipollo/release-action@v1
+         if: ${{ startsWith(github.ref, 'refs/tags/') }}
+         with:
+           artifacts: "./cipx/*.cipx"
+           draft: true
+           bodyFile: ./cipx/checksums.md
+           token: ${{ secrets.GITHUB_TOKEN }}
