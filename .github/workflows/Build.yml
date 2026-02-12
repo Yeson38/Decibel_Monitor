@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: pwsh -ep bypass ./tools/publish.ps1
 
-      - name: Checksum
+      - name: Md5Checksum
         run: pwsh -ep bypass ./tools/generate-md5.ps1 cipx/
       
       - name: Upload APP to release
