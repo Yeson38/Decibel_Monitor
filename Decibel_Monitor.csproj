@@ -20,6 +20,13 @@
         <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     </ItemGroup>
 
+    <!-- 排除测试项目，避免被主项目默认 glob 重复编译 -->
+    <ItemGroup>
+        <Compile Remove="Tests\**\*.cs" />
+        <EmbeddedResource Remove="Tests\**" />
+        <None Remove="Tests\**" />
+    </ItemGroup>
+
     <ItemGroup>
       <Compile Update="Controls\ComponentSettings\DecibelComponentSettingsControl.axaml.cs">
         <DependentUpon>DecibelComponentSettingsControl.axaml</DependentUpon>
