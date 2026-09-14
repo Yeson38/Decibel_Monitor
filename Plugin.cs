@@ -5,7 +5,6 @@ using ClassIsland.Core.Controls;
 using ClassIsland.Core.Extensions.Registry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NAudio.CoreAudioApi;
 
 namespace Decibel_Monitor
 {
@@ -17,17 +16,15 @@ namespace Decibel_Monitor
             // 可选欢迎提示
             //CommonTaskDialogs.ShowDialog("Hello world!", "Hello from Decibel_Monitor!");
 
+            // 插件全局设置（保存于插件配置目录，供采样服务与设置页共享）
+            var globalSettingsService = new Services.DecibelMonitorSettingsService(PluginConfigFolder);
+            services.AddSingleton(globalSettingsService);
+
+            // 共享的麦克风峰值采样服务（单例，构造时读取全局采样偏好）
+            services.AddSingleton<Services.AudioPeakMeter>();
+
             // 一次性注册组件与其设置控件（不要重复注册）
             services.AddComponent<Controls.Components.DecibelComponent, Controls.ComponentSettings.DecibelComponentSettingsControl>();
-        }
-
-        public float GetVoicePeakValue()
-        {
-            var enumerator = new MMDeviceEnumerator();
-            var CaptureDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToArray();
-            var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
-            var selectedDevice = CaptureDevices.FirstOrDefault(c => c.ID == defaultDevice.ID);
-            return selectedDevice?.AudioMeterInformation.MasterPeakValue ?? 0f;
         }
     }
 }
