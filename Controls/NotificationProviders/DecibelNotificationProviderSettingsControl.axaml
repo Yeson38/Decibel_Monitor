@@ -1,0 +1,50 @@
+<ci:NotificationProviderControlBase
+    x:TypeArguments="notificationProviderSettings:DecibelNotificationProviderSettings"
+    x:Class="Decibel_Monitor.Controls.NotificationProviders.DecibelNotificationProviderSettingsControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:local="clr-namespace:Decibel_Monitor.Controls.NotificationProviders"
+    xmlns:notificationProviderSettings="clr-namespace:Decibel_Monitor.Models.NotificationProviderSettings"
+    mc:Ignorable="d"
+    d:DesignHeight="450" d:DesignWidth="800">
+
+    <!-- "强调通知侧"设置：当分贝值超过阈值时如何提醒。 -->
+    <ScrollViewer
+        DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type local:DecibelNotificationProviderSettingsControl}}}">
+        <StackPanel Classes="settings-container animated-intro" Margin="12" Spacing="8">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="88" Text="启用提醒" />
+                <ToggleSwitch IsChecked="{Binding Settings.IsAlertEnabled, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="88" Text="阈值（dB）" />
+                <Slider Width="260" Minimum="0" Maximum="150"
+                        Value="{Binding Settings.AlertThreshold, Mode=TwoWay}" TickFrequency="1" />
+                <TextBlock VerticalAlignment="Center" Width="64"
+                           Text="{Binding Settings.AlertThreshold, StringFormat='{}{0:F0} dB'}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="88" Text="提醒文字" />
+                <TextBox Width="300" Text="{Binding Settings.AlertText, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="88" Text="冷却（分钟）" />
+                <Slider Width="180" Minimum="1" Maximum="60"
+                        Value="{Binding Settings.AlertCooldownMinutes, Mode=TwoWay}"
+                        TickFrequency="1" IsSnapToTickEnabled="True" />
+                <TextBlock VerticalAlignment="Center"
+                           Text="{Binding Settings.AlertCooldownMinutes, StringFormat='{}{0} 分钟'}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="说明：当麦克风分贝映射值超过阈值时，组件会显示红色提示文字，同时弹出醒目提醒；冷却时间内不会重复提醒。"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </ScrollViewer>
+</ci:NotificationProviderControlBase>

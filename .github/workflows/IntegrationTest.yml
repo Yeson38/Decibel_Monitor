@@ -1,0 +1,77 @@
+name: Integration Test
+
+# 集成冒烟测试：用官方 Release 版 ClassIsland 启动并加载本插件，
+# 验证插件入口 Initialize 能完整执行（注册组件/提醒提供方无异常）。
+# 运行时功能（麦克风采样、UI 交互）在无头 CI 环境中无法验证。
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  integration-test:
+    runs-on: windows-latest
+    name: Launch in ClassIsland
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+
+      - name: Publish plugin
+        shell: pwsh
+        run: dotnet publish Decibel_Monitor.csproj -c Release -o "$env:RUNNER_TEMP\plugin"
+
+      - name: Download & extract ClassIsland (official release 2.1.0.1)
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP "classisland.zip"
+          $dest = Join-Path $env:RUNNER_TEMP "classisland"
+          Invoke-WebRequest -Uri "https://github.com/ClassIsland/ClassIsland/releases/download/2.1.0.1/ClassIsland_app_windows_x64_full_folder.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          $exe = Get-ChildItem -Path $dest -Recurse -Filter "ClassIsland.Desktop.exe" | Select-Object -First 1
+          if (-not $exe) { throw "未在解压目录中找到 ClassIsland.Desktop.exe" }
+          Write-Host "ClassIsland.Desktop.exe: $($exe.FullName)"
+          Add-Content -Path $env:GITHUB_ENV -Value "CI_CLASSISLAND_EXE=$($exe.FullName)"
+
+      - name: Launch ClassIsland with plugin & verify load marker
+        shell: pwsh
+        env:
+          DECIBEL_MONITOR_CI_MARKER: "1"
+        run: |
+          $exe = $env:CI_CLASSISLAND_EXE
+          $exeDir = Split-Path $exe
+          # folder 打包：AppPackageRoot = exeDir/.., AppRoot = AppPackageRoot/data,
+          # 插件配置目录 = AppRoot/Config/Plugins/<manifest.id>
+          $appRoot = (Resolve-Path (Join-Path $exeDir "..")).Path
+          $marker = Join-Path $appRoot "data\Config\Plugins\Decibel_Monitor\loaded.marker"
+          $pluginDir = Join-Path $env:RUNNER_TEMP "plugin"
+          Write-Host "插件目录: $pluginDir"
+          Write-Host "期望标记文件: $marker"
+
+          $proc = Start-Process -FilePath $exe -ArgumentList @("-epp", $pluginDir, "--skip-oobe", "--quiet") -PassThru -WindowStyle Hidden
+          try {
+            $deadline = (Get-Date).AddSeconds(150)
+            $found = $false
+            while ((Get-Date) -lt $deadline) {
+              if (Test-Path $marker) { $found = $true; break }
+              if ($proc.HasExited) {
+                Write-Host "ClassIsland 进程已退出, ExitCode=$($proc.ExitCode)"
+                break
+              }
+              Start-Sleep -Seconds 5
+            }
+            if (-not $found) {
+              Write-Host "ClassIsland 进程是否存活: $(-not $proc.HasExited)"
+              Write-Host "AppRoot 下内容："
+              if (Test-Path $appRoot) { Get-ChildItem $appRoot -Recurse -Depth 3 | Select-Object -ExpandProperty FullName | Out-String | Write-Host }
+              throw "插件未能在 ClassIsland 中成功加载（标记文件不存在: $marker）"
+            }
+            Write-Host "✅ 插件加载成功，标记文件: $marker"
+            Get-Content $marker
+          } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }

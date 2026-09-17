@@ -4,8 +4,7 @@ on:
   push:
   workflow_dispatch:
   pull_request:
-    types: [closed]
-  
+
 jobs:
   build_app:
     runs-on: windows-latest
@@ -13,7 +12,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Install .NET Core
         uses: actions/setup-dotnet@v4
         with:
@@ -26,13 +25,16 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
-      
+
       - name: Build
         run: pwsh -ep bypass ./tools/publish.ps1
 
+      - name: Test
+        run: dotnet test Tests/Decibel_Monitor.Tests/Decibel_Monitor.Tests.csproj -c Release
+
       - name: Md5Checksum
         run: pwsh -ep bypass ./tools/generate-md5.ps1 cipx/
-      
+
       - name: Upload APP to release
         uses: ncipollo/release-action@v1
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -40,9 +42,9 @@ jobs:
           artifacts: "./cipx/*.cipx"
           draft: true
           generateReleaseNotes: true
-          body: ./cipx/checksums.md
+          bodyFile: ./cipx/checksums.md
           token: ${{ secrets.GITHUB_TOKEN }}
-           
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

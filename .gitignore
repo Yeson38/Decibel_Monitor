@@ -29,6 +29,8 @@ x86/
 bld/
 [Bb]in/
 [Oo]bj/
+# ClassIsland 插件打包产物
+cipx/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/

@@ -1,0 +1,74 @@
+<ci:SettingsPageBase x:Class="Decibel_Monitor.Views.SettingsPages.DecibelMonitorSettingsPage"
+      xmlns="https://github.com/avaloniaui"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ci="http://classisland.tech/schemas/xaml/core"
+      mc:Ignorable="d"
+      d:DesignHeight="600" d:DesignWidth="800">
+
+    <!-- 与其他设置项同层级的插件设置页：全局采样偏好 + 设备诊断 + 说明 -->
+    <ScrollViewer>
+        <StackPanel Classes="settings-container animated-intro" Margin="24" Spacing="8">
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="校准（全局）" Margin="0,0,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="参考（dB）" />
+                <Slider Width="260" Minimum="0" Maximum="150" TickFrequency="1"
+                        Value="{Binding GlobalSettings.ReferenceDecibel, Mode=TwoWay}" />
+                <TextBlock VerticalAlignment="Center" Width="64"
+                           Text="{Binding GlobalSettings.ReferenceDecibel, StringFormat='{}{0:F1} dB'}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                <Button Click="On_Calibrate" Content="校准" Padding="8,6" />
+                <TextBlock VerticalAlignment="Center" Text="当前全局放大倍数：" />
+                <TextBlock x:Name="TextMagnification" VerticalAlignment="Center" Text="1.000×" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="校准对整个插件的所有组件生效（同一麦克风测量一致）。点击“校准”后插件会短暂录音一次，按当前参考值计算全局放大倍数。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="测量（高级）" Margin="0,8,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="持续监听麦克风" />
+                <ToggleSwitch IsChecked="{Binding GlobalSettings.EnableContinuousMonitoring, Mode=TwoWay}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="开启（默认）：保持一条低开销捕获流持续读取分贝，数值稳定、无闪烁；Windows 会显示“麦克风正在使用”，但图标为常亮而非闪烁。关闭后仅使用系统实时计量，多数设备在没有其它程序录音时会一直显示 0。"
+                       TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="单次采样时长" />
+                <Slider Width="220" Minimum="100" Maximum="2000" TickFrequency="100"
+                        Value="{Binding GlobalSettings.FallbackCaptureMs, Mode=TwoWay}"
+                        IsSnapToTickEnabled="True"/>
+                <TextBlock VerticalAlignment="Center" Width="90"
+                           Text="{Binding GlobalSettings.FallbackCaptureMs, StringFormat='{}{0} ms'}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="单次采样时长：仅在点击“校准”等显式采样时使用，时长越长越容易捕获弱信号。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="诊断" Margin="0,8,0,4"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                <Button Click="On_RefreshDevices" Content="刷新设备" Padding="8,6" />
+                <Button Click="On_ShowDevices" Content="捕获设备列表" Padding="8,6" />
+            </StackPanel>
+            <TextBlock x:Name="TextDefaultDevice" Classes="muted" FontSize="12"
+                       Text="（点击“刷新设备”以读取默认捕获设备）"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="关于" Margin="0,8,0,4"/>
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="Decibel_Monitor 分贝监测插件。组件显示偏好请右键组件 → 设置；提醒相关设置请在 通知 → 分贝提醒 中配置；测量与校准为插件级全局设置，见本页上方。插件仅在本机采样处理，不会上传任何音频数据。"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>
