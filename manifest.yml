@@ -11,3 +11,7 @@ url: https://github.com/Yeson38/Decibel_Monitor/
 version: 0.0.0.1
 apiVersion: 2.0.0.0
 author: Yeson
+# 可选依赖：安装后可用"热键判定源"（按键确认提醒）；未安装时插件其余功能不受影响。
+dependencies:
+  - id: Starsky16.KeyboardCapture
+    isRequired: false

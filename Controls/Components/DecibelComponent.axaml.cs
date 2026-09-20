@@ -1,242 +1,158 @@
-﻿using System;
-using System.ComponentModel;
-using System.Linq;
-using System.Threading.Tasks;
+using System;
+using Avalonia;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Shared;
+using Decibel_Monitor.Alarm;
 using DecibelComponentSettings = Decibel_Monitor.Models.ComponentSettings.DecibelComponentSettings;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
 
 namespace Decibel_Monitor.Controls.Components;
 
 [ComponentInfo(
-    "FFFFFFFF-EEEE-DDDD-CCCC-BBBBBBBBBBBB",
+    "3540a8df-963c-45e9-a42d-8a55824994d5",
     "分贝值",
     "\uEB88",
     "在主界面上显示麦克风分贝值。"
 )]
-public partial class DecibelComponent : ComponentBase<DecibelComponentSettings>, INotifyPropertyChanged, IDisposable
+public partial class DecibelComponent : ComponentBase<DecibelComponentSettings>
 {
+    /// <summary>当前显示的分贝值文本。</summary>
+    public static readonly StyledProperty<string> CurrentDecibelValueProperty =
+        AvaloniaProperty.Register<DecibelComponent, string>(nameof(CurrentDecibelValue), "N/A");
+
+    /// <summary>是否显示提醒状态点（任一判定源已启用且组件设置未关闭时显示）。</summary>
+    public static readonly StyledProperty<bool> IsIndicatorVisibleProperty =
+        AvaloniaProperty.Register<DecibelComponent, bool>(nameof(IsIndicatorVisible));
+
+    /// <summary>提醒状态点是否为红色：红=提醒触发中（含冷却期），绿=正常。</summary>
+    public static readonly StyledProperty<bool> IsIndicatorAlertProperty =
+        AvaloniaProperty.Register<DecibelComponent, bool>(nameof(IsIndicatorAlert));
+
+    /// <summary>筛选窗口开启时状态点的闪烁半周期（毫秒）：红灯、绿灯各持续这么久。</summary>
+    private const int BlinkHalfPeriodMs = 400;
+
     private readonly DispatcherTimer _updateTimer;
-    private readonly MMDeviceEnumerator _enumerator;
-    private bool _disposed;
-    private string _currentDecibelValue = "N/A";
+    private readonly AlertRuntimeService? _runtimeService;
+    private volatile bool _isActive;
+    private volatile bool _isUpdating;
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
+    /// <summary>
+    /// 当前显示的分贝值文本（Avalonia 属性，绑定自动响应变化）。
+    /// </summary>
     public string CurrentDecibelValue
     {
-        get => _currentDecibelValue;
-        private set
-        {
-            if (_currentDecibelValue == value) return;
-            _currentDecibelValue = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentDecibelValue)));
-        }
+        get => GetValue(CurrentDecibelValueProperty);
+        private set => SetValue(CurrentDecibelValueProperty, value);
+    }
+
+    /// <summary>
+    /// 是否显示提醒状态点（组件设置关闭或没有启用任何判定源时为 false）。
+    /// </summary>
+    public bool IsIndicatorVisible
+    {
+        get => GetValue(IsIndicatorVisibleProperty);
+        private set => SetValue(IsIndicatorVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// 提醒状态点是否为红色：红=提醒触发中（含冷却期），绿=正常；
+    /// 筛选窗口开启时在红绿之间交替，形成闪动。
+    /// </summary>
+    public bool IsIndicatorAlert
+    {
+        get => GetValue(IsIndicatorAlertProperty);
+        private set => SetValue(IsIndicatorAlertProperty, value);
     }
 
     public DecibelComponent()
     {
         InitializeComponent();
 
-        _enumerator = new MMDeviceEnumerator();
+        // 从宿主 DI 容器获取提醒运行时服务（单例）：采样与判定都在该服务的节拍中完成，
+        // 组件只读取其状态用于显示。动态解析而非构造期缓存：插件加载早期组件可能先于
+        // 通知提供方（IHostedService）创建。
+        _runtimeService = IAppHost.Host?.Services.GetService(typeof(AlertRuntimeService)) as AlertRuntimeService;
 
         _updateTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(200)
         };
+        // 定时器不在这里启动：组件生命周期改由视觉树决定（见 OnAttachedToVisualTree /
+        // OnDetachedFromVisualTree）。宿主通过 DI 根容器解析瞬态组件且从不调用释放方法，
+        // 若在构造期启动定时器，已启动的 DispatcherTimer 会被 Dispatcher 强引用，
+        // Tick 订阅闭包会永久钉住组件实例，导致组件重建后旧实例无法回收。
+    }
+
+    // 定时器随视觉树的附着/分离启停：宿主从 DI 根容器解析瞬态组件且从不调用释放方法，
+    // 不能依赖释放方法兜底，改为跟随视觉树生命周期，组件离开视觉树后即退订
+    // Tick 并停止定时器，避免已启动的 DispatcherTimer 通过 Tick 闭包钉住实例。
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // 可重入守卫：附着/分离可能成对多次发生，重复 Start 会导致重复计时
+        if (_isActive) return;
+        _isActive = true;
         _updateTimer.Tick += UpdateTimer_Tick;
         _updateTimer.Start();
     }
 
-    // 异步 Tick，内部会异步采样（不会阻塞 UI）
-    private async void UpdateTimer_Tick(object? sender, EventArgs e)
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        base.OnDetachedFromVisualTree(e);
+
+        if (!_isActive) return;
+        _isActive = false;
+        _updateTimer.Tick -= UpdateTimer_Tick;
+        _updateTimer.Stop();
+    }
+
+    private void UpdateTimer_Tick(object? sender, EventArgs e)
+    {
+        // 节流守卫：附着/分离的边界情形下可能重入
+        if (_isUpdating) return;
+        _isUpdating = true;
         try
         {
-            var captureDevices = _enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToArray();
-            var defaultDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
-            var selectedDevice = captureDevices.FirstOrDefault(c => c.ID == defaultDevice.ID) ?? defaultDevice;
-
-            if (selectedDevice?.AudioMeterInformation is null)
+            // 应用设置的更新频率（设置变化后下一拍即生效）；
+            // 筛选窗口开启时收紧到闪烁半周期，保证红绿交替看得见
+            int intervalMs = Math.Clamp(Settings?.UpdateIntervalMs ?? 200, 100, 5000);
+            if (_runtimeService?.IsHotkeyWindowOpen == true) intervalMs = Math.Min(intervalMs, BlinkHalfPeriodMs);
+            if (Math.Abs(_updateTimer.Interval.TotalMilliseconds - intervalMs) > 0.5)
             {
-                CurrentDecibelValue = "无设备";
+                _updateTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
+            }
+
+            if (_runtimeService is null)
+            {
+                CurrentDecibelValue = "无采样服务";
+                IsIndicatorVisible = false;
                 return;
             }
 
-            // 获取线性峰值（0..1），内部含多重回退采样
-            float linear = await GetVoicePeakLinearAsync(selectedDevice).ConfigureAwait(false);
+            // "提醒状态点"开关只影响组件上是否显示状态点，不影响提醒链路
+            bool showIndicator = Settings?.ShowStatusIndicator ?? true;
+            bool showPrefix = Settings?.ShowDecibelPrefix ?? true;
 
-            // 应用放大倍数（保护 Settings 为空）
-            double magnification = Settings?.Magnification ?? 1.0;
-            linear = (float)(linear * magnification);
+            CurrentDecibelValue = _runtimeService.HasSample
+                ? (showPrefix ? $"分贝: {_runtimeService.CurrentDecibel:F1}" : $"{_runtimeService.CurrentDecibel:F1}")
+                : "N/A";
 
-            if (linear <= 0f)
-            {
-                CurrentDecibelValue = "0.0";
-                return;
-            }
-
-            // 计算 dBFS（通常为负值）
-            double dbfs = 20.0 * Math.Log10(linear);
-
-            // 映射为 0..150：使用 150 + dBFS，再 clamp 到 0..150
-            double mapped = Math.Clamp(150.0 + dbfs, 0.0, 150.0);
-
-            CurrentDecibelValue = $"{mapped:F1}";
+            // 单一状态点：红=提醒触发中（超阈值/冷却期），绿=正常；
+            // 筛选窗口开启时红绿交替闪动，与静态状态区分开
+            IsIndicatorVisible = showIndicator && _runtimeService.IsAnySourceEnabled;
+            IsIndicatorAlert = _runtimeService.IsHotkeyWindowOpen
+                ? Environment.TickCount64 / BlinkHalfPeriodMs % 2 == 0
+                : _runtimeService.IsAlertStateActive;
         }
         catch (Exception)
         {
             CurrentDecibelValue = "读取失败";
         }
-    }
-
-    // 与设置控件类似的多重回退采样函数（优先 AudioMeterInformation -> WasapiCapture -> WaveIn）
-    private async Task<float> GetVoicePeakLinearAsync(MMDevice selected)
-    {
-        try
+        finally
         {
-            // 1) 尝试 AudioMeterInformation
-            var val = selected?.AudioMeterInformation?.MasterPeakValue ?? 0f;
-            if (val > 0.0001f) return val;
-
-            // 2) 尝试 WasapiCapture 指定设备
-            try
-            {
-                var v = await GetVoicePeakLinearByWasapiCaptureAsync(selected, 300).ConfigureAwait(false);
-                if (v > 0.0001f) return v;
-            }
-            catch { }
-
-            // 3) 尝试 WasapiCapture 默认设备
-            try
-            {
-                var v = await GetVoicePeakLinearByWasapiCaptureAsync(null, 300).ConfigureAwait(false);
-                if (v > 0.0001f) return v;
-            }
-            catch { }
-
-            // 4) 尝试 WaveInEvent 回退
-            try
-            {
-                var v = await GetVoicePeakLinearByWaveInAsync(300).ConfigureAwait(false);
-                if (v > 0.0001f) return v;
-            }
-            catch { }
-
-            return 0f;
+            _isUpdating = false;
         }
-        catch
-        {
-            return 0f;
-        }
-    }
-
-    private async Task<float> GetVoicePeakLinearByWasapiCaptureAsync(MMDevice? device, int captureMs = 300)
-    {
-        try
-        {
-            float maxSample = 0f;
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            using var capture = device is null ? new WasapiCapture() : new WasapiCapture(device);
-            capture.DataAvailable += (s, e) =>
-            {
-                try
-                {
-                    var wf = capture.WaveFormat;
-                    if (wf.Encoding == WaveFormatEncoding.IeeeFloat)
-                    {
-                        for (int n = 0; n + 4 <= e.BytesRecorded; n += 4)
-                        {
-                            float sample = BitConverter.ToSingle(e.Buffer, n);
-                            maxSample = Math.Max(maxSample, Math.Abs(sample));
-                        }
-                    }
-                    else if (wf.BitsPerSample == 16)
-                    {
-                        for (int n = 0; n + 2 <= e.BytesRecorded; n += 2)
-                        {
-                            short s16 = BitConverter.ToInt16(e.Buffer, n);
-                            float sample = Math.Abs(s16 / 32768f);
-                            maxSample = Math.Max(maxSample, sample);
-                        }
-                    }
-                    else if (wf.BitsPerSample == 32)
-                    {
-                        for (int n = 0; n + 4 <= e.BytesRecorded; n += 4)
-                        {
-                            int i32 = BitConverter.ToInt32(e.Buffer, n);
-                            float sample = Math.Abs(i32 / (float)int.MaxValue);
-                            maxSample = Math.Max(maxSample, sample);
-                        }
-                    }
-                }
-                catch { }
-            };
-
-            capture.RecordingStopped += (s, e) => tcs.TrySetResult(true);
-
-            capture.StartRecording();
-            await Task.Delay(captureMs).ConfigureAwait(false);
-            capture.StopRecording();
-            await Task.WhenAny(tcs.Task, Task.Delay(1000)).ConfigureAwait(false);
-
-            return Math.Clamp(maxSample, 0f, 1f);
-        }
-        catch
-        {
-            return 0f;
-        }
-    }
-
-    private async Task<float> GetVoicePeakLinearByWaveInAsync(int captureMs = 300)
-    {
-        try
-        {
-            float maxSample = 0f;
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            using var waveIn = new WaveInEvent();
-            waveIn.WaveFormat = new WaveFormat(16000, 16, 1);
-            waveIn.DataAvailable += (s, e) =>
-            {
-                try
-                {
-                    for (int i = 0; i + 2 <= e.BytesRecorded; i += 2)
-                    {
-                        short s16 = BitConverter.ToInt16(e.Buffer, i);
-                        float sample = Math.Abs(s16 / 32768f);
-                        maxSample = Math.Max(maxSample, sample);
-                    }
-                }
-                catch { }
-            };
-            waveIn.RecordingStopped += (s, e) => tcs.TrySetResult(true);
-
-            waveIn.StartRecording();
-            await Task.Delay(captureMs).ConfigureAwait(false);
-            waveIn.StopRecording();
-            await Task.WhenAny(tcs.Task, Task.Delay(1000)).ConfigureAwait(false);
-
-            return Math.Clamp(maxSample, 0f, 1f);
-        }
-        catch
-        {
-            return 0f;
-        }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        _updateTimer.Tick -= UpdateTimer_Tick;
-        _updateTimer.Stop();
-
-        _enumerator.Dispose();
     }
 }

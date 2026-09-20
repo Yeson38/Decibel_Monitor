@@ -1,0 +1,206 @@
+<ci:SettingsPageBase x:Class="Decibel_Monitor.Views.SettingsPages.DecibelMonitorSettingsPage"
+      xmlns="https://github.com/avaloniaui"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:ci="http://classisland.tech/schemas/xaml/core"
+      xmlns:fa="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+      mc:Ignorable="d"
+      d:DesignHeight="600" d:DesignWidth="800">
+
+    <!-- 与其他设置项同层级的插件设置页：校准 + 采样偏好 + 提醒判定 + 设备诊断 -->
+    <ScrollViewer>
+        <StackPanel Classes="settings-container animated-intro" Margin="24" Spacing="8">
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="校准（全局）" Margin="0,0,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="参考（dB）" />
+                <Slider Width="260" Minimum="0" Maximum="150" TickFrequency="1"
+                        Value="{Binding GlobalSettings.ReferenceDecibel, Mode=TwoWay}" />
+                <TextBlock VerticalAlignment="Center" Width="64"
+                           Text="{Binding GlobalSettings.ReferenceDecibel, StringFormat='{}{0:F1} dB'}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                <Button Click="On_Calibrate" Content="校准" Padding="8,6" />
+                <TextBlock VerticalAlignment="Center" Text="当前全局放大倍数：" />
+                <TextBlock x:Name="TextMagnification" VerticalAlignment="Center" Text="1.000×" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="校准对整个插件的所有组件生效（同一麦克风测量一致）。点击“校准”后插件会短暂录音一次，按当前参考值计算全局放大倍数。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="测量（高级）" Margin="0,8,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="持续监听麦克风" />
+                <ToggleSwitch IsChecked="{Binding GlobalSettings.EnableContinuousMonitoring, Mode=TwoWay}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="开启（默认）：保持一条低开销捕获流持续读取分贝，数值稳定、无闪烁；Windows 会显示“麦克风正在使用”，但图标为常亮而非闪烁。关闭后仅使用系统实时计量，多数设备在没有其它程序录音时会一直显示 0。"
+                       TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="单次采样时长" />
+                <Slider Width="220" Minimum="100" Maximum="2000" TickFrequency="100"
+                        Value="{Binding GlobalSettings.FallbackCaptureMs, Mode=TwoWay}"
+                        IsSnapToTickEnabled="True"/>
+                <TextBlock VerticalAlignment="Center" Width="90"
+                           Text="{Binding GlobalSettings.FallbackCaptureMs, StringFormat='{}{0} ms'}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="单次采样时长：仅在点击“校准”等显式采样时使用，时长越长越容易捕获弱信号。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="提醒判定" Margin="0,8,0,4"/>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="110" Text="平均窗口时长" />
+                <Slider Width="220" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True"
+                        Value="{Binding GlobalSettings.AverageWindowSeconds, Mode=TwoWay}" />
+                <TextBlock VerticalAlignment="Center" Width="70"
+                           Text="{Binding GlobalSettings.AverageWindowSeconds, StringFormat='{}{0:F0} 秒'}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="判定源比较的是窗口内的平均分贝而非瞬时值，避免单次尖峰误触发；窗口越长越平滑、响应越慢。"
+                       TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="判定源优先级" />
+                    <ListBox x:Name="ListPriorityOrder" Width="280" MinHeight="64"
+                             ItemsSource="{Binding PriorityItems}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                    <TextBlock Text="{Binding Description}" FontSize="11"
+                                               Classes="muted" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+                <StackPanel Spacing="6" VerticalAlignment="Center">
+                    <Button Content="上移" Padding="10,4" Click="On_MovePriorityUp" />
+                    <Button Content="下移" Padding="10,4" Click="On_MovePriorityDown" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="同一次判定中多个判定源同时触发时，靠前者被记为触发提醒的判定源。"
+                       TextWrapping="Wrap"/>
+
+            <!-- 判定源①：到阈值自动提醒 -->
+            <fa:SettingsExpander Header="判定源①：自动提醒"
+                                 Description="平均分贝超过阈值时立即发出提醒。"
+                                 IsExpanded="{Binding GlobalSettings.AutoSourceEnabled, Mode=OneWay}">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding GlobalSettings.AutoSourceEnabled, Mode=TwoWay}" />
+                </fa:SettingsExpander.Footer>
+                <fa:SettingsExpanderItem Content="阈值"
+                                         Description="窗口平均分贝严格大于该值时视为超阈值。">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="220" Minimum="0" Maximum="150" TickFrequency="1"
+                                Value="{Binding GlobalSettings.AutoSourceThreshold, Mode=TwoWay}" />
+                        <TextBlock VerticalAlignment="Center" Width="76"
+                                   Text="{Binding GlobalSettings.AutoSourceThreshold, StringFormat='{}{0:F1} dB'}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="冷却时间"
+                                         Description="两次提醒之间的最小间隔；冷却期内状态点为红色但不重复提醒。">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="220" Minimum="0" Maximum="1800" TickFrequency="30"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding GlobalSettings.AutoSourceCooldownSeconds, Mode=TwoWay}" />
+                        <TextBlock VerticalAlignment="Center" Width="76"
+                                   Text="{Binding GlobalSettings.AutoSourceCooldownSeconds, StringFormat='{}{0:F0} 秒'}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+            </fa:SettingsExpander>
+
+            <!-- 判定源②：到阈值开筛选窗口，窗口内命中热键才提醒 -->
+            <fa:SettingsExpander Header="判定源②：热键确认"
+                                 Description="平均分贝超过阈值时开启筛选窗口，窗口内按下指定热键才提醒；窗口内没有按键则不提醒。窗口开启期间组件上的状态点会红绿闪动。"
+                                 IsEnabled="{Binding KeyboardCaptureAvailable}"
+                                 IsExpanded="{Binding GlobalSettings.HotkeySourceEnabled, Mode=OneWay}">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding GlobalSettings.HotkeySourceEnabled, Mode=TwoWay}" />
+                </fa:SettingsExpander.Footer>
+                <fa:SettingsExpanderItem Content="阈值"
+                                         Description="窗口平均分贝严格大于该值时开启筛选窗口。">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="220" Minimum="0" Maximum="150" TickFrequency="1"
+                                Value="{Binding GlobalSettings.HotkeySourceThreshold, Mode=TwoWay}" />
+                        <TextBlock VerticalAlignment="Center" Width="76"
+                                   Text="{Binding GlobalSettings.HotkeySourceThreshold, StringFormat='{}{0:F1} dB'}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="冷却时间"
+                                         Description="两次提醒之间的最小间隔；冷却期内不再开启筛选窗口，状态点保持红色。">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="220" Minimum="0" Maximum="1800" TickFrequency="30"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding GlobalSettings.HotkeySourceCooldownSeconds, Mode=TwoWay}" />
+                        <TextBlock VerticalAlignment="Center" Width="76"
+                                   Text="{Binding GlobalSettings.HotkeySourceCooldownSeconds, StringFormat='{}{0:F0} 秒'}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="筛选窗口时长"
+                                         Description="窗口开启后等待按键确认的时间，超时则关闭窗口且不提醒；窗口开启期间组件状态点红绿闪动。">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Slider Width="220" Minimum="1" Maximum="60" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding GlobalSettings.HotkeyWindowSeconds, Mode=TwoWay}" />
+                        <TextBlock VerticalAlignment="Center" Width="76"
+                                   Text="{Binding GlobalSettings.HotkeyWindowSeconds, StringFormat='{}{0:F0} 秒'}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="确认热键"
+                                         Description="窗口内按下该组合键即确认提醒。键名与 KeyboardCapture 一致，如 F5、Space、A。">
+                    <ci:Field Label="键名">
+                        <TextBox Width="160" Watermark="如 F5"
+                                 Text="{Binding GlobalSettings.HotkeyKey, Mode=TwoWay}" />
+                    </ci:Field>
+                </fa:SettingsExpanderItem>
+                <fa:SettingsExpanderItem Content="修饰键"
+                                         Description="需要与键名同时按下的组合键；全部不勾选表示单键。">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <CheckBox Content="Ctrl" IsChecked="{Binding GlobalSettings.HotkeyCtrl, Mode=TwoWay}" />
+                        <CheckBox Content="Alt" IsChecked="{Binding GlobalSettings.HotkeyAlt, Mode=TwoWay}" />
+                        <CheckBox Content="Shift" IsChecked="{Binding GlobalSettings.HotkeyShift, Mode=TwoWay}" />
+                        <CheckBox Content="Win" IsChecked="{Binding GlobalSettings.HotkeyMeta, Mode=TwoWay}" />
+                    </StackPanel>
+                </fa:SettingsExpanderItem>
+            </fa:SettingsExpander>
+
+            <TextBlock FontSize="12" Classes="muted" IsVisible="{Binding !KeyboardCaptureAvailable}"
+                       Text="未检测到“键盘捕捉”插件，热键确认判定源不可用。安装并启用该插件后重启 ClassIsland 即可使用。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="提醒的正文与语音由 通知 → 分贝提醒 与宿主提醒设置控制，本页只决定“何时提醒”。执行一次提醒后，分贝采样与判定会暂停 3 秒以避免提醒自身的声音反复触发。"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="诊断" Margin="0,8,0,4"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                <Button Click="On_RefreshDevices" Content="刷新设备" Padding="8,6" />
+                <Button Click="On_ShowDevices" Content="捕获设备列表" Padding="8,6" />
+            </StackPanel>
+            <TextBlock x:Name="TextDefaultDevice" Classes="muted" FontSize="12"
+                       Text="（点击“刷新设备”以读取默认捕获设备）"
+                       TextWrapping="Wrap"/>
+
+            <TextBlock FontSize="14" FontWeight="Bold" Text="关于" Margin="0,8,0,4"/>
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="Decibel_Monitor 分贝监测插件。组件显示偏好请右键组件 → 设置；提醒正文与语音在 通知 → 分贝提醒 中配置；“何时提醒”由本页的判定源决定。插件仅在本机采样处理，不会上传任何音频数据。"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>

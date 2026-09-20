@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net8.0-windows</TargetFramework>
@@ -18,6 +18,16 @@
         </PackageReference>
         <PackageReference Include="NAudio" Version="2.2.1" />
         <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+        <!-- KeyboardCapture 插件的共享契约包（可选依赖）：仅含接口与数据模型，无传递依赖。
+             这里不排除 runtime 资产：KeyboardCapture 未安装时，本插件仍需自带该契约程序集才能安全地尝试解析服务。 -->
+        <PackageReference Include="Starsky16.KeyboardCapture.Abstractions" Version="0.2.0" />
+    </ItemGroup>
+
+    <!-- 排除测试项目，避免被主项目默认 glob 重复编译 -->
+    <ItemGroup>
+        <Compile Remove="Tests\**\*.cs" />
+        <EmbeddedResource Remove="Tests\**" />
+        <None Remove="Tests\**" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,6 +36,12 @@
       </Compile>
       <Compile Update="Controls\Components\DecibelComponent.axaml.cs">
         <DependentUpon>DecibelComponent.axaml</DependentUpon>
+      </Compile>
+      <Compile Update="Controls\NotificationProviders\DecibelNotificationProviderSettingsControl.axaml.cs">
+        <DependentUpon>DecibelNotificationProviderSettingsControl.axaml</DependentUpon>
+      </Compile>
+      <Compile Update="Views\SettingsPages\DecibelMonitorSettingsPage.axaml.cs">
+        <DependentUpon>DecibelMonitorSettingsPage.axaml</DependentUpon>
       </Compile>
     </ItemGroup>
 
