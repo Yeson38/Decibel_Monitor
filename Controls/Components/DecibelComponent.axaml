@@ -1,21 +1,3 @@
-﻿<!-- 
-    组件基类定义，用于创建分贝监控组件
-    类名: DecibelComponent
-    继承自: ComponentBase<DecibelComponentSettingsControl>
-    命名空间: Decibel_Monitor.Controls.Components
-    
-    参数说明:
-    - x:Class: 指定XAML对应的后台代码类的完整命名空间路径
-    - x:TypeArguments: 指定泛型参数类型，即组件设置控件的类型
-    
-    XML命名空间说明:
-    - xmlns: 默认Avalonia UI命名空间
-    - xmlns:x: Microsoft XAML命名空间
-    - xmlns:ci: ClassIsland核心XAML模式定义
-    - xmlns:componentSettings: 组件设置相关的CLR命名空间
-    - xmlns:converters: 数据转换器相关的CLR命名空间
-    - xmlns:local: 当前组件所在的本地CLR命名空间
--->
 <ci:ComponentBase
     x:Class="Decibel_Monitor.Controls.Components.DecibelComponent"
     x:TypeArguments="componentSettings:DecibelComponentSettings"
@@ -23,39 +5,70 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ci="http://classisland.tech/schemas/xaml/core"
     xmlns:componentSettings="clr-namespace:Decibel_Monitor.Models.ComponentSettings"
-    xmlns:converters="clr-namespace:Decibel_Monitor.Shared.Converters"
     xmlns:local="clr-namespace:Decibel_Monitor.Controls.Components">
 
-    <!-- 定义组件内部使用的资源 ->
-    <ci:ComponentBase.Resources>
-        <!- 角度转换器，用于将数值转换为圆角半径 ->
-        <converters:CornerRadiusConverter x:Key="CornerRadiusConverter" />
-    </ci:ComponentBase.Resources>
-	-->
-
-    <!-- 
-        主布局容器，使用网格布局并垂直居中对齐
-        数据上下文绑定到当前组件实例，以便访问组件的属性和设置
-    -->
+    <!-- 主布局容器，数据上下文绑定到当前组件实例，以便访问组件的属性和设置 -->
     <Grid VerticalAlignment="Center"
           DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type local:DecibelComponent}}}">
-        <!-- 水平堆栈面板，提供基础的内外边距 -->
+        <Grid.Styles>
+            <!-- 数字前景色：判据成立=红、不成立=绿、无采样=不设（沿用宿主默认文字色）。
+                 使用宿主主题语义画刷而非固定色值，深浅主题下对比度由主题保证 -->
+            <Style Selector="TextBlock.value-alert">
+                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}"/>
+            </Style>
+            <Style Selector="TextBlock.value-normal">
+                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}"/>
+            </Style>
+            <!-- 呼吸：仅筛选窗口即将超时时对三角的不透明度做同色脉动。
+                 不再在红绿之间交替，避免最紧急的状态有一半时间显示成"正常" -->
+            <Style Selector="Path.breathing">
+                <Style.Animations>
+                    <Animation Duration="0:0:1" IterationCount="Infinite">
+                        <KeyFrame Cue="0%">
+                            <Setter Property="Opacity" Value="1.0"/>
+                        </KeyFrame>
+                        <KeyFrame Cue="50%">
+                            <Setter Property="Opacity" Value="0.35"/>
+                        </KeyFrame>
+                        <KeyFrame Cue="100%">
+                            <Setter Property="Opacity" Value="1.0"/>
+                        </KeyFrame>
+                    </Animation>
+                </Style.Animations>
+            </Style>
+        </Grid.Styles>
         <StackPanel Orientation="Horizontal" Margin="0 2 0 2">
-            <!-- 
-                边框控件，用于显示具有圆角效果的视觉元素
-                圆角半径通过数据绑定从组件设置中获取，并使用转换器进行格式转换
-                启用裁剪以确保内容不会超出圆角边界
-            ->
-            <Border
-                CornerRadius="{Binding Settings.CornerRadius, Converter={StaticResource CornerRadiusConverter}, Mode=OneWay, UpdateSourceTrigger=PropertyChanged}"
-                ClipToBounds="True">
-            </Border>
-			-->
-		    <!--文本组件，用于显示当前的分贝值-->
-            <TextBlock Text="{Binding CurrentDecibelValue, Mode=OneWay}" 
-                       FontSize="16" 
-                       VerticalAlignment="Center" 
-                       Margin="5,0,0,0"/>
+            <!-- 文本组件，用于显示当前的分贝值 -->
+            <TextBlock Text="{Binding CurrentDecibelValue, Mode=OneWay}"
+                       FontSize="16"
+                       VerticalAlignment="Center"
+                       Margin="5,0,0,0"
+                       Classes.value-alert="{Binding IsValueAboveThreshold, Mode=OneWay}"
+                       Classes.value-normal="{Binding IsValueWithinThreshold, Mode=OneWay}"/>
+            <!-- 提醒状态点：形状 + 填充 + 呼吸三个通道互斥显示，同一时刻最多一个形状；
+                 无采样 / 未启用任何判定源时不显示任何形状 -->
+            <Panel IsVisible="{Binding IsIndicatorVisible, Mode=OneWay}"
+                   VerticalAlignment="Center"
+                   Margin="6,0,0,0">
+                <!-- 常态：低不透明度绿圆 -->
+                <Ellipse Width="12" Height="12" Opacity="0.45"
+                         Fill="{DynamicResource SystemFillColorSuccessBrush}"
+                         IsVisible="{Binding IsCircleVisible, Mode=OneWay}"/>
+                <!-- 正在超阈值：红实心方 -->
+                <Rectangle Width="12" Height="12"
+                           Fill="{DynamicResource SystemFillColorCriticalBrush}"
+                           IsVisible="{Binding IsSquareFilledVisible, Mode=OneWay}"/>
+                <!-- 提醒后的冷却期：红空心方。形状表达"提醒已发生过"，数字颜色表达"现在是否还在吵"，
+                     因此冷却期恒定空心，不与"正在超阈值"的实心方混淆 -->
+                <Rectangle Width="12" Height="12" StrokeThickness="2" Fill="Transparent"
+                           Stroke="{DynamicResource SystemFillColorCriticalBrush}"
+                           IsVisible="{Binding IsSquareHollowVisible, Mode=OneWay}"/>
+                <!-- 待热键确认：橙实心三角（唯一需要用户动手的状态），窗口即将超时时呼吸 -->
+                <Path Data="M 6,0 L 12,12 L 0,12 Z"
+                      Fill="{DynamicResource SystemFillColorCautionBrush}"
+                      IsVisible="{Binding IsTriangleVisible, Mode=OneWay}"
+                      Classes.breathing="{Binding IsBreathing, Mode=OneWay}"/>
+            </Panel>
         </StackPanel>
     </Grid>
 </ci:ComponentBase>

@@ -1,0 +1,28 @@
+<ci:NotificationProviderControlBase
+    x:TypeArguments="notificationProviderSettings:DecibelNotificationProviderSettings"
+    x:Class="Decibel_Monitor.Controls.NotificationProviders.DecibelNotificationProviderSettingsControl"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ci="http://classisland.tech/schemas/xaml/core"
+    xmlns:local="clr-namespace:Decibel_Monitor.Controls.NotificationProviders"
+    xmlns:notificationProviderSettings="clr-namespace:Decibel_Monitor.Models.NotificationProviderSettings"
+    mc:Ignorable="d"
+    d:DesignHeight="450" d:DesignWidth="800">
+
+    <!-- "强调通知侧"设置：只配置提醒正文；何时提醒由插件设置页的判定源决定。 -->
+    <ScrollViewer
+        DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type local:DecibelNotificationProviderSettingsControl}}}">
+        <StackPanel Classes="settings-container animated-intro" Margin="12" Spacing="8">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock VerticalAlignment="Center" Width="88" Text="提醒文字" />
+                <TextBox Width="300" Text="{Binding Settings.AlertText, Mode=TwoWay}" />
+            </StackPanel>
+
+            <TextBlock FontSize="12" Classes="muted"
+                       Text="说明：这里只配置提醒正文。是否提醒、阈值、冷却时间与按键确认等判断方式，请在 设置 → Decibel_Monitor 的“提醒判定”中按判定源分别配置；提醒语音由本页上方的提醒设置统一控制。"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </ScrollViewer>
+</ci:NotificationProviderControlBase>
